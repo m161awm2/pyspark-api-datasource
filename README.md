@@ -56,6 +56,31 @@ tests/                       pytest (구간 분할, 재시도, Mock API 결정�
 
 상태 확인: `kubectl get sparkapplication -n spark-jobs`, 로그: `kubectl logs public-api-ingest-driver -n spark-jobs`
 
+## 데이터 확인
+
+**Mock 원본 데이터** (클러스터 내부 ClusterIP라 port-forward 필요. 장애 주입 때문에 가끔 429/5xx가 나오면 다시 호출)
+
+```bash
+kubectl port-forward -n spark-jobs svc/mock-api 18000:8000
+curl -s "localhost:18000/api/items?pageNo=1&numOfRows=50" | jq '{totalCount, duplicateCount, dup: .items[47:50]}'
+# 50행마다 직전 행이 한 번 더 나옴 (id 49가 두 번)
+open http://localhost:18000/docs   # Swagger UI
+```
+
+**변환 후 데이터 (S3 Parquet)**
+
+```bash
+source .env.local
+aws s3 ls --recursive --human-readable s3://$S3_BUCKET/public-data/facilities/
+aws s3 cp --recursive s3://$S3_BUCKET/public-data/facilities/ ./out/
+docker run --rm -v $PWD/out:/data:ro --entrypoint python3 public-api-spark:0.1.0 -c '
+import pyarrow.dataset as ds
+t = ds.dataset("/data", format="parquet", partitioning="hive").to_table().to_pandas()
+print(len(t), t["id"].nunique()); print(t.head())'
+```
+
+AWS 콘솔: S3 → 버킷 → `public-data/facilities/ingest_date=YYYY-MM-DD/` → 파일 선택 → **S3 Select로 쿼리**(Parquet 미리보기)
+
 ## 주의 사항
 
 - **자격 증명**: `refresh-aws-secret.sh`는 현재 `aws` CLI 세션의 임시 자격 증명을 그대로 Secret에 넣습니다.
