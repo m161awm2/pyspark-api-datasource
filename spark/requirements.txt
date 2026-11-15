@@ -1,0 +1,4 @@
+# Spark 4.0 Python Data Source 는 Arrow 로 행을 직렬화하므로 executor 에 pyarrow/pandas 필요
+pyarrow==18.1.0
+pandas==2.2.3
+requests==2.32.3

@@ -1,0 +1,53 @@
+# 템플릿: scripts/run-job.sh 가 envsubst 로 APP_NAME, S3_BUCKET, AWS_REGION, INGEST_DATE, EXTRA_ARGS 를 치환해 apply 한다.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: ${APP_NAME}
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: public-api-spark:0.1.0
+  imagePullPolicy: IfNotPresent
+  mainApplicationFile: local:///opt/spark/work-dir/jobs/ingest_to_s3.py
+  arguments:
+    - --api-url
+    - http://mock-api.spark-jobs.svc.cluster.local:8000/api/items
+    - --output
+    - s3a://${S3_BUCKET}/public-data/facilities
+    - --num-rows
+    - "1000"
+    - --num-partitions
+    - "3"
+    - --ingest-date
+    - "${INGEST_DATE}"${EXTRA_ARGS}
+  sparkVersion: "4.0.1"
+  sparkConf:
+    spark.sql.shuffle.partitions: "3"
+    spark.task.maxFailures: "4"
+    spark.sql.sources.partitionOverwriteMode: dynamic
+    spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.hadoop.fs.s3a.endpoint.region: ${AWS_REGION}
+    # AWS SDK v2: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN 환경변수 사용
+    spark.hadoop.fs.s3a.aws.credentials.provider: software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+  restartPolicy:
+    type: Never
+  driver:
+    cores: 1
+    memory: 1g
+    serviceAccount: spark
+    labels: { app: public-api-ingest }
+    envFrom:
+      - secretRef:
+          name: aws-s3-credentials
+          optional: true   # dry-run 은 Secret 없이도 실행 가능
+  executor:
+    instances: 3
+    cores: 1
+    memory: 1g
+    labels: { app: public-api-ingest }
+    envFrom:
+      - secretRef:
+          name: aws-s3-credentials
+          optional: true   # dry-run 은 Secret 없이도 실행 가능

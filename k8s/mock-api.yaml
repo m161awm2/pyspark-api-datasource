@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-api
+  namespace: spark-jobs
+  labels: { app: mock-api }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: mock-api }
+  template:
+    metadata:
+      labels: { app: mock-api }
+    spec:
+      containers:
+        - name: mock-api
+          image: mock-public-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - { name: TOTAL_COUNT, value: "100000" }
+            - { name: DUP_EVERY, value: "50" }        # 50행마다 1건 중복 → duplicateCount=2000
+            - { name: SEED, value: "42" }
+            - { name: FAIL_RATE, value: "0.05" }      # 500/503
+            - { name: RATE_LIMIT_RATE, value: "0.02" } # 429 + Retry-After
+            - { name: LATENCY_MS, value: "50-200" }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-api
+  namespace: spark-jobs
+spec:
+  type: ClusterIP
+  selector: { app: mock-api }
+  ports:
+    - port: 8000
+      targetPort: 8000
