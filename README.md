@@ -79,7 +79,8 @@ t = ds.dataset("/data", format="parquet", partitioning="hive").to_table().to_pan
 print(len(t), t["id"].nunique()); print(t.head())'
 ```
 
-AWS 콘솔: S3 → 버킷 → `public-data/facilities/ingest_date=YYYY-MM-DD/` → 파일 선택 → **S3 Select로 쿼리**(Parquet 미리보기)
+AWS 콘솔: S3 → 버킷 → `public-data/facilities/ingest_date=YYYY-MM-DD/` 에서 파일 목록·크기 확인 및 다운로드.
+SQL로 보고 싶으면 Athena에서 이 경로로 외부 테이블을 만들어 조회 (S3 Select는 신규 계정에서 사용 불가).
 
 ## 주의 사항
 
